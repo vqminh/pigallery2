@@ -109,6 +109,10 @@ export class PublicRouter {
       res.sendStatus(200);
     });
 
+    app.get('/browse', (req: Request, res: Response) => {
+      res.sendFile(path.resolve(__dirname, '..', '..', '..', 'browse.html'));
+    });
+
     app.get('/manifest.json', (req: Request, res: Response) => {
       res.send({
         name: Config.Server.applicationTitle,
