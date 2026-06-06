@@ -25,6 +25,8 @@ export class GalleryRouter {
     this.addRandom(app);
     this.addDirectoryList(app);
     this.addDirectoryZip(app);
+    this.addTrashMedia(app);
+    this.addToggleStar(app);
 
     this.addSearch(app);
     this.addAutoComplete(app);
@@ -284,6 +286,30 @@ export class GalleryRouter {
       // specific part
       GalleryMWs.autocomplete,
       ServerTimingMWs.addServerTiming,
+      RenderingMWs.renderResult
+    );
+  }
+
+  protected static addTrashMedia(app: Express): void {
+    app.delete(
+      Config.Server.apiPath + '/gallery/content/:mediaPath(*)',
+      AuthenticationMWs.authenticate,
+      AuthenticationMWs.authorise(UserRoles.Admin),
+      AuthenticationMWs.normalizePathParam('mediaPath'),
+
+      GalleryMWs.trashFile,
+      RenderingMWs.renderResult
+    );
+  }
+
+  protected static addToggleStar(app: Express): void {
+    app.post(
+      Config.Server.apiPath + '/gallery/star/:mediaPath(*)',
+      AuthenticationMWs.authenticate,
+      AuthenticationMWs.authorise(UserRoles.Admin),
+      AuthenticationMWs.normalizePathParam('mediaPath'),
+
+      GalleryMWs.toggleStar,
       RenderingMWs.renderResult
     );
   }

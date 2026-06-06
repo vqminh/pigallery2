@@ -5,70 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Browse Photos</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Simple grid — no column reflow on append */
-    .photo-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px;
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          keyframes: {
+            shimmer: {
+              '0%': { backgroundPosition: '200% 0' },
+              '100%': { backgroundPosition: '-200% 0' },
+            },
+            spin: {
+              to: { transform: 'rotate(360deg)' },
+            },
+          },
+          animation: {
+            shimmer: 'shimmer 1.5s infinite',
+            spin: 'spin 0.8s linear infinite',
+          },
+        },
+      },
     }
-    @media (min-width: 640px)  { .photo-grid { grid-template-columns: repeat(3, 1fr); } }
-    @media (min-width: 1024px) { .photo-grid { grid-template-columns: repeat(4, 1fr); } }
-    @media (min-width: 1536px) { .photo-grid { grid-template-columns: repeat(5, 1fr); } }
-
-    .photo-grid img {
-      display: block;
-      width: 100%;
-      aspect-ratio: 3/4;
-      object-fit: cover;
-      cursor: pointer;
-      border-radius: 4px;
-      transition: opacity 0.3s;
-    }
-    .photo-grid img:hover {
-      opacity: 0.85;
-    }
-
-    /* Lightbox */
-    #lightbox {
-      transition: opacity 0.2s;
-    }
-    #lightbox.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #lightbox-img {
-      max-width: 95vw;
-      max-height: 95vh;
-      object-fit: contain;
-    }
-
-    /* Loading skeleton */
-    .skeleton {
-      aspect-ratio: 3/4;
-      border-radius: 4px;
-      background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-    }
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    /* Spinner */
-    .spinner {
-      border: 3px solid rgba(255,255,255,0.1);
-      border-top-color: rgba(255,255,255,0.7);
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  </style>
+  </script>
 </head>
 <body class="bg-black text-white min-h-screen">
 
@@ -90,9 +47,22 @@
 
   <!-- Gallery -->
   <div id="gallery-screen" class="hidden">
-    <div id="gallery" class="photo-grid p-1"></div>
+    <!-- Toolbar -->
+    <div id="toolbar" class="fixed top-0 right-0 left-0 z-40 flex justify-end p-3 transition-transform duration-300 -translate-y-full pointer-events-none">
+      <div class="flex gap-2 pointer-events-auto bg-zinc-900/70 backdrop-blur-md rounded-full px-2 py-1 border border-zinc-700/50">
+        <label class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white/70 hover:text-white transition cursor-pointer select-none">
+          <input type="checkbox" id="filter-starred" onchange="applyFilters()" class="accent-yellow-400 w-4 h-4 cursor-pointer">
+          ⭐ Starred
+        </label>
+        <label class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white/70 hover:text-white transition cursor-pointer select-none">
+          <input type="checkbox" id="filter-videos" onchange="applyFilters()" class="accent-white w-4 h-4 cursor-pointer">
+          🎬 Videos
+        </label>
+      </div>
+    </div>
+    <div id="gallery" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-1 p-1"></div>
     <div id="loading" class="flex justify-center py-8">
-      <div class="spinner"></div>
+      <div class="w-8 h-8 border-[3px] border-white/10 border-t-white/70 rounded-full animate-spin"></div>
     </div>
     <div id="end-marker" class="text-center text-zinc-600 text-sm py-6 hidden">
       All photos loaded
@@ -100,17 +70,20 @@
   </div>
 
   <!-- Lightbox -->
-  <div id="lightbox" class="hidden fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+  <div id="lightbox" class="hidden fixed inset-0 z-50 bg-black/95 flex items-center justify-center transition-opacity duration-200"
        onclick="lightbox.handleClick(event)">
-    <button onclick="lightbox.close()" class="absolute top-4 right-4 z-10 text-white/60 hover:text-white text-3xl leading-none p-2">
+    <button onclick="lightbox.close()"
+      class="absolute top-4 right-4 z-10 text-white/60 hover:text-white text-3xl leading-none p-2">
       &times;
     </button>
     <button onclick="event.stopPropagation(); lightbox.prev()"
       class="absolute left-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-4xl p-4 select-none">
       &#8249;
     </button>
-    <img id="lightbox-img" src="" alt="" class="select-none">
-    <div id="lightbox-spinner" class="absolute spinner hidden"></div>
+    <img id="lightbox-img" src="" alt=""
+      class="select-none max-w-[95vw] max-h-[95vh] object-contain origin-center transition-opacity duration-200">
+    <video id="lightbox-video" class="hidden select-none max-w-[95vw] max-h-[95vh] object-contain" controls autoplay></video>
+    <div id="lightbox-spinner" class="absolute w-8 h-8 border-[3px] border-white/10 border-t-white/70 rounded-full animate-spin hidden"></div>
     <button onclick="event.stopPropagation(); lightbox.next()"
       class="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-4xl p-4 select-none">
       &#8250;
@@ -124,11 +97,48 @@ const THUMB_SIZE = 540;
 const FULL_RES_SIZE = 2160;
 const BATCH_SIZE = 60;
 
-// --- State ---
 let allPhotos = [];
 let renderedCount = 0;
 
-// --- Helpers ---
+// --- Toolbar show/hide on scroll ---
+let lastScrollY = 0;
+function setupToolbar() {
+  const toolbar = document.getElementById('toolbar');
+  window.addEventListener('scroll', () => {
+    const currentY = window.scrollY;
+    if (currentY < lastScrollY && currentY > 50) {
+      // Scrolling up — show toolbar
+      toolbar.classList.remove('-translate-y-full');
+      toolbar.classList.add('translate-y-0');
+    } else {
+      // Scrolling down or at top — hide toolbar
+      toolbar.classList.add('-translate-y-full');
+      toolbar.classList.remove('translate-y-0');
+    }
+    lastScrollY = currentY;
+  });
+}
+
+// --- Filter ---
+function applyFilters() {
+  document.getElementById('gallery').innerHTML = '';
+  renderedCount = 0;
+  renderNewPhotos();
+}
+
+function getFilteredPhotos() {
+  let list = allPhotos;
+  if (document.getElementById('filter-videos').checked) {
+    list = list.filter(p => isVideo(p.name));
+  }
+  if (document.getElementById('filter-starred').checked) {
+    list = list.filter(p => p.starred);
+  }
+  return list;
+}
+
+const VIDEO_EXTS = ['mp4','webm','ogv','ogg','avi','mkv','mov','wmv','flv','mts','m2ts','mpg','3gp','m4v','mpeg','vob','divx','xvid','ts'];
+
 function encodePath(dirPath, dirName, fileName) {
   const parts = [dirPath, dirName, fileName].filter(p => p && p !== '.' && p !== './');
   const raw = parts.join('/').replace(/\/+/g, '/');
@@ -136,6 +146,11 @@ function encodePath(dirPath, dirName, fileName) {
     .replace(/#/g, '%23')
     .replace(/\$/g, '%24')
     .replace(/\?/g, '%3F');
+}
+
+function isVideo(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  return VIDEO_EXTS.includes(ext);
 }
 
 function thumbUrl(photo) {
@@ -146,6 +161,14 @@ function fullResUrl(photo) {
   return `${API}/gallery/content/${encodePath(photo.dirPath, photo.dirName, photo.name)}/${FULL_RES_SIZE}`;
 }
 
+function videoUrl(photo) {
+  return `${API}/gallery/content/${encodePath(photo.dirPath, photo.dirName, photo.name)}/bestFit`;
+}
+
+function originalUrl(photo) {
+  return `${API}/gallery/content/${encodePath(photo.dirPath, photo.dirName, photo.name)}`;
+}
+
 function formatDate(epochSec) {
   if (!epochSec) return '';
   return new Date(epochSec * 1000).toLocaleDateString(undefined, {
@@ -153,7 +176,6 @@ function formatDate(epochSec) {
   });
 }
 
-// --- Auth ---
 async function checkAuth() {
   try {
     const res = await fetch(`${API}/user/me`, {credentials: 'include'});
@@ -176,7 +198,6 @@ async function login(username, password) {
   return data.result;
 }
 
-// --- API ---
 async function fetchDirectory(dirPath) {
   const encoded = dirPath ? encodeURI(dirPath).replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\?/g, '%3F') : '';
   const url = encoded ? `${API}/gallery/content/${encoded}` : `${API}/gallery/`;
@@ -189,44 +210,40 @@ function unpackMedia(result, parentDirPath, parentDirName) {
   const photos = [];
   const dir = result.directory;
   if (!dir) return photos;
-
   const dirPath = parentDirPath ?? dir.path ?? '.';
   const dirName = parentDirName ?? dir.name ?? '';
-
   if (dir.media) {
     for (const m of dir.media) {
       const name = m.n || m.name;
       const meta = m.m || m.metadata || {};
       const dims = meta.d || (meta.size ? [meta.size.width, meta.size.height] : [0, 0]);
       const creationDate = meta.t || (meta.creationDate ? meta.creationDate / 1000 : 0);
-      photos.push({ name, dirPath, dirName, creationDate, width: dims[0], height: dims[1] });
+      // Keywords: packed as 'k' (array of indices into map.keywords), or full 'keywords' array
+      let keywords = [];
+      if (meta.k && result.map && result.map.keywords) {
+        keywords = meta.k.map(idx => result.map.keywords[idx]);
+      } else if (meta.keywords) {
+        keywords = meta.keywords;
+      }
+      photos.push({ name, dirPath, dirName, creationDate, width: dims[0], height: dims[1], keywords, starred: keywords.includes('star') });
     }
   }
   return photos;
 }
 
-// --- Load directories newest-first (YY_ prefix), append photos once ---
 async function loadAllPhotos(dirPath, depth) {
   if (depth > 10) return;
   try {
     const data = await fetchDirectory(dirPath);
     if (!data.result) return;
-
     const dir = data.result.directory;
     if (!dir) return;
-
     const currentPath = dir.path ?? '.';
     const currentName = dir.name ?? '';
-
-    // Add this directory's photos sorted newest-first
     const photos = unpackMedia(data.result, currentPath, currentName);
     photos.sort((a, b) => b.creationDate - a.creationDate);
     allPhotos.push(...photos);
-
-    // Render only the new photos — already-rendered photos are untouched
     renderNewPhotos();
-
-    // Recurse subdirectories in descending order (YY_ prefix = newest first)
     if (dir.directories) {
       const sorted = dir.directories.slice().sort((a, b) =>
         (b.name || '').localeCompare(a.name || '', undefined, {numeric: true})
@@ -243,39 +260,135 @@ async function loadAllPhotos(dirPath, depth) {
   }
 }
 
-// --- Render only unrendered photos (append-only, no reflow) ---
+async function trashPhoto(photo, wrapper) {
+  if (!confirm(`Delete ${photo.name}?`)) return;
+  const pathStr = encodePath(photo.dirPath, photo.dirName, photo.name);
+  try {
+    const res = await fetch(`${API}/gallery/content/${pathStr}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Delete failed');
+    wrapper.remove();
+  } catch (err) {
+    console.error('Trash failed:', err);
+    alert('Failed to delete: ' + err.message);
+  }
+}
+
+async function toggleStar(photo, starBtn) {
+  const pathStr = encodePath(photo.dirPath, photo.dirName, photo.name);
+  try {
+    const res = await fetch(`${API}/gallery/star/${pathStr}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Star failed');
+    photo.starred = data.result.starred;
+    starBtn.textContent = photo.starred ? '★' : '☆';
+    starBtn.classList.toggle('text-yellow-400', photo.starred);
+    starBtn.classList.toggle('text-white/80', !photo.starred);
+    // Always show when starred, hide-on-no-hover when unstarred
+    if (photo.starred) {
+      starBtn.classList.remove('hidden', 'group-hover:flex');
+      starBtn.classList.add('flex');
+    } else {
+      starBtn.classList.remove('flex');
+      starBtn.classList.add('hidden', 'group-hover:flex');
+    }
+  } catch (err) {
+    console.error('Star failed:', err);
+  }
+}
+
+let hoverTimer = null;
+let hoverPreload = null;
+
 function renderNewPhotos() {
   const gallery = document.getElementById('gallery');
-  const end = Math.min(renderedCount + BATCH_SIZE, allPhotos.length);
+  const filtered = getFilteredPhotos();
+  const end = Math.min(renderedCount + BATCH_SIZE, filtered.length);
 
   for (let i = renderedCount; i < end; i++) {
-    const photo = allPhotos[i];
+    const photo = filtered[i];
+    const globalIndex = allPhotos.indexOf(photo);
+    const isVid = isVideo(photo.name);
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'relative';
+    wrapper.className = 'relative group';
 
     const skeleton = document.createElement('div');
-    skeleton.className = 'skeleton';
+    skeleton.className = 'aspect-[3/4] rounded bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 bg-[length:200%_100%] animate-shimmer';
     wrapper.appendChild(skeleton);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white/80 hidden group-hover:flex items-center justify-center text-base z-10 backdrop-blur-sm transition hover:bg-red-600 hover:text-white cursor-pointer';
+    deleteBtn.innerHTML = '&#x2715;';
+    deleteBtn.title = 'Delete';
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation();
+      trashPhoto(photo, wrapper);
+    };
+    wrapper.appendChild(deleteBtn);
+
+    const starBtn = document.createElement('button');
+    starBtn.className = 'absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/60 hidden group-hover:flex items-center justify-center text-base z-10 backdrop-blur-sm transition hover:bg-black/80 cursor-pointer ' + (photo.starred ? 'text-yellow-400' : 'text-white/80');
+    starBtn.textContent = photo.starred ? '★' : '☆';
+    starBtn.title = 'Star';
+    starBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleStar(photo, starBtn);
+    };
+    // Always show star button if starred
+    if (photo.starred) {
+      starBtn.classList.remove('hidden', 'group-hover:flex');
+      starBtn.classList.add('flex');
+    }
+    wrapper.appendChild(starBtn);
+
+    // Video play icon overlay
+    if (isVid) {
+      const playIcon = document.createElement('div');
+      playIcon.className = 'absolute inset-0 flex items-center justify-center pointer-events-none z-[1]';
+      playIcon.innerHTML = '<div class="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"><svg class="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>';
+      wrapper.appendChild(playIcon);
+    }
 
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.alt = photo.name;
     img.src = thumbUrl(photo);
-    img.style.opacity = '0';
-    img.style.position = 'absolute';
-    img.style.inset = '0';
-    img.dataset.index = i;
+    img.className = 'block w-full aspect-[3/4] object-cover rounded cursor-pointer transition-opacity duration-300 opacity-0 absolute inset-0';
+    img.dataset.index = globalIndex;
 
     img.onload = () => {
       skeleton.remove();
-      img.style.opacity = '1';
-      img.style.position = '';
+      img.classList.remove('absolute', 'inset-0', 'opacity-0');
+      img.classList.add('hover:opacity-85');
     };
     img.onerror = () => {
       wrapper.remove();
     };
     img.onclick = () => lightbox.open(parseInt(img.dataset.index));
+
+    // Hover preload (photos only — load in background, don't open)
+    if (!isVid) {
+      wrapper.addEventListener('mouseenter', () => {
+        clearTimeout(hoverTimer);
+        if (hoverPreload) { hoverPreload.src = ''; hoverPreload = null; }
+        const idx = parseInt(img.dataset.index);
+        hoverTimer = setTimeout(() => {
+          hoverPreload = new Image();
+          hoverPreload.src = fullResUrl(allPhotos[idx]);
+        }, 200);
+      });
+
+      wrapper.addEventListener('mouseleave', () => {
+        clearTimeout(hoverTimer);
+      });
+    }
 
     wrapper.appendChild(img);
     gallery.appendChild(wrapper);
@@ -284,55 +397,155 @@ function renderNewPhotos() {
   renderedCount = end;
 }
 
-// --- Infinite scroll ---
 function setupInfiniteScroll() {
   new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      if (entry.isIntersecting && renderedCount < allPhotos.length) {
+      if (entry.isIntersecting && renderedCount < getFilteredPhotos().length) {
         renderNewPhotos();
       }
     }
   }, {rootMargin: '600px'}).observe(document.getElementById('loading'));
 }
 
-// --- Lightbox ---
 const lightbox = {
   el: document.getElementById('lightbox'),
   img: document.getElementById('lightbox-img'),
+  video: document.getElementById('lightbox-video'),
   spinner: document.getElementById('lightbox-spinner'),
   caption: document.getElementById('lightbox-caption'),
   currentIndex: -1,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  MAX_ZOOM: 5,
 
+  resetZoom() {
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.applyTransform();
+  },
+  showImg() {
+    this.video.pause();
+    this.video.removeAttribute('src');
+    this.video.load();
+    this.img.classList.remove('hidden');
+    this.video.classList.add('hidden');
+  },
+  showVid() {
+    this.img.classList.add('hidden');
+    this.video.classList.remove('hidden');
+  },
   open(index) {
     this.currentIndex = index;
+    this.resetZoom();
     this.el.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    this.showPhoto();
+    this.showMedia();
+  },
+  openPreloaded(index, src) {
+    this.currentIndex = index;
+    this.resetZoom();
+    this.el.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    this.showImg();
+    this.img.src = src;
+    this.img.style.opacity = '1';
+    this.spinner.classList.add('hidden');
+    const photo = allPhotos[index];
+    this.caption.textContent = `${photo.name} — ${formatDate(photo.creationDate)}`;
   },
   close() {
+    this.video.pause();
+    this.video.removeAttribute('src');
+    this.video.load();
     this.el.classList.add('hidden');
     document.body.style.overflow = '';
     this.currentIndex = -1;
+    this.resetZoom();
   },
   next() {
-    if (this.currentIndex < allPhotos.length - 1) { this.currentIndex++; this.showPhoto(); }
+    if (this.currentIndex < allPhotos.length - 1) {
+      this.currentIndex++;
+      this.resetZoom();
+      this.showMedia();
+    }
   },
   prev() {
-    if (this.currentIndex > 0) { this.currentIndex--; this.showPhoto(); }
+    if (this.currentIndex > 0) {
+      this.currentIndex--;
+      this.resetZoom();
+      this.showMedia();
+    }
   },
-  showPhoto() {
+  applyTransform() {
+    this.img.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+    if (this.zoom < 1) {
+      this.el.style.backgroundColor = `rgba(0,0,0,${0.95 * this.zoom})`;
+    } else {
+      this.el.style.backgroundColor = '';
+    }
+  },
+  handleWheel(e) {
+    // Don't zoom on videos
+    if (isVideo(allPhotos[this.currentIndex]?.name)) return;
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1 / 1.03 : 1.03;
+    const newZoom = this.zoom * factor;
+
+    if (newZoom < this.zoom && this.zoom <= 1) {
+      this.close();
+      return;
+    }
+
+    const clampedZoom = Math.min(newZoom, this.MAX_ZOOM);
+
+    const rect = this.img.getBoundingClientRect();
+    const imgCenterX = rect.left + rect.width / 2;
+    const imgCenterY = rect.top + rect.height / 2;
+    const dx = e.clientX - imgCenterX;
+    const dy = e.clientY - imgCenterY;
+    const scaleDelta = clampedZoom / this.zoom;
+    this.panX += dx * (1 - scaleDelta);
+    this.panY += dy * (1 - scaleDelta);
+
+    if (clampedZoom <= 1) {
+      this.panX = 0;
+      this.panY = 0;
+    }
+
+    this.zoom = clampedZoom;
+    this.applyTransform();
+  },
+  showMedia() {
     const photo = allPhotos[this.currentIndex];
     if (!photo) return;
-    this.spinner.classList.remove('hidden');
-    this.img.style.opacity = '0.3';
-    const newImg = new Image();
-    newImg.onload = () => { this.img.src = newImg.src; this.img.style.opacity = '1'; this.spinner.classList.add('hidden'); };
-    newImg.onerror = () => { this.img.src = thumbUrl(photo); this.img.style.opacity = '1'; this.spinner.classList.add('hidden'); };
-    newImg.src = fullResUrl(photo);
     this.caption.textContent = `${photo.name} — ${formatDate(photo.creationDate)}`;
+
+    if (isVideo(photo.name)) {
+      this.showVid();
+      this.spinner.classList.add('hidden');
+      // Try bestFit (transcoded) first, fall back to original
+      this.video.src = videoUrl(photo);
+      this.video.onerror = () => {
+        this.video.src = originalUrl(photo);
+      };
+    } else {
+      this.showImg();
+      this.spinner.classList.remove('hidden');
+      this.img.style.opacity = '0.3';
+      const newImg = new Image();
+      newImg.onload = () => { this.img.src = newImg.src; this.img.style.opacity = '1'; this.spinner.classList.add('hidden'); };
+      newImg.onerror = () => { this.img.src = thumbUrl(photo); this.img.style.opacity = '1'; this.spinner.classList.add('hidden'); };
+      newImg.src = fullResUrl(photo);
+    }
   },
   handleClick(event) { if (event.target === this.el) this.close(); }
 };
+
+document.getElementById('lightbox').addEventListener('wheel', (e) => {
+  if (lightbox.currentIndex >= 0) lightbox.handleWheel(e);
+}, {passive: false});
 
 document.addEventListener('keydown', (e) => {
   if (lightbox.currentIndex < 0) return;
@@ -341,7 +554,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft') lightbox.prev();
 });
 
-// --- Init ---
 async function init() {
   const authed = await checkAuth();
   if (!authed) {
@@ -364,6 +576,7 @@ async function init() {
 async function startGallery() {
   document.getElementById('gallery-screen').classList.remove('hidden');
   setupInfiniteScroll();
+  setupToolbar();
   await loadAllPhotos('', 0);
   renderNewPhotos();
   document.getElementById('loading').classList.add('hidden');

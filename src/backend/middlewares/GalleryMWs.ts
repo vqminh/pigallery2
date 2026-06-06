@@ -16,6 +16,11 @@ import {SearchQueryDTO, SearchQueryTypes,} from '../../common/entities/SearchQue
 import {LocationLookupException} from '../exceptions/LocationLookupException';
 import {ServerTime} from './ServerTimingMWs';
 import {SortByTypes} from '../../common/entities/SortingMethods';
+import {SQLConnection} from '../model/database/SQLConnection';
+import {MediaEntity} from '../model/database/enitites/MediaEntity';
+import {DirectoryEntity} from '../model/database/enitites/DirectoryEntity';
+
+const TRASH_FOLDER_NAME = '_trash';
 
 export class GalleryMWs {
   /**
@@ -496,6 +501,107 @@ export class GalleryMWs {
         new ErrorDTO(
           ErrorCodes.GENERAL_ERROR,
           'Can\'t get random photo: ' + e.toString()
+        )
+      );
+    }
+  }
+
+  public static async trashFile(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    if (!req.params['mediaPath']) {
+      return next();
+    }
+    const mediaPath = req.params['mediaPath'];
+    const fullMediaPath = path.join(
+      ProjectPath.ImageFolder,
+      mediaPath
+    );
+
+    try {
+      // Verify file exists and is not a directory
+      const stat = await fsp.stat(fullMediaPath);
+      if (stat.isDirectory()) {
+        return next(
+          new ErrorDTO(ErrorCodes.INPUT_ERROR, 'Cannot trash a directory')
+        );
+      }
+
+      // Create _trash folder at the root of the images directory
+      const trashFolder = path.join(ProjectPath.ImageFolder, TRASH_FOLDER_NAME);
+      await fsp.mkdir(trashFolder, {recursive: true});
+
+      // Move file to trash
+      const trashPath = path.join(trashFolder, path.basename(fullMediaPath));
+      await fsp.rename(fullMediaPath, trashPath);
+
+      req.resultPipe = 'ok';
+      return next();
+    } catch (e) {
+      return next(
+        new ErrorDTO(
+          ErrorCodes.GENERAL_ERROR,
+          'Error trashing file: ' + mediaPath,
+          e.toString()
+        )
+      );
+    }
+  }
+
+  public static async toggleStar(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    if (!req.params['mediaPath']) {
+      return next();
+    }
+    const mediaPath = req.params['mediaPath'];
+    const STAR_TAG = 'star';
+
+    try {
+      const connection = await SQLConnection.getConnection();
+
+      // Parse directory and filename from mediaPath
+      const fileName = path.basename(mediaPath);
+      const dirName = path.basename(path.dirname(mediaPath));
+
+      // Find the media entity by name + directory name
+      const media = await connection.getRepository(MediaEntity)
+        .createQueryBuilder('media')
+        .innerJoinAndSelect('media.directory', 'dir')
+        .where('media.name = :name', {name: fileName})
+        .andWhere('dir.name = :dirName', {dirName})
+        .getOne();
+
+      if (!media) {
+        return next(
+          new ErrorDTO(ErrorCodes.INPUT_ERROR, 'Media not found: ' + mediaPath)
+        );
+      }
+
+      // Toggle the star keyword
+      const keywords = media.metadata.keywords || [];
+      const idx = keywords.indexOf(STAR_TAG);
+      if (idx >= 0) {
+        keywords.splice(idx, 1);
+      } else {
+        keywords.push(STAR_TAG);
+      }
+      media.metadata.keywords = keywords;
+
+      await connection.getRepository(MediaEntity).save(media);
+
+      req.resultPipe = {starred: idx < 0};
+      return next();
+    } catch (e) {
+      return next(
+        new ErrorDTO(
+          ErrorCodes.GENERAL_ERROR,
+          'Error toggling star: ' + mediaPath,
+          e.toString()
         )
       );
     }
